@@ -12,7 +12,9 @@ param environment string = 'prod'
 @description('Región de los recursos (toma automáticamente la del Resource Group)')
 param location string = resourceGroup().location
 
-// Sufijo único determinista para recursos que exigen nombre único mundial
+@description('Object ID de tu usuario en Azure para poder crear secretos en Key Vault')
+param adminPrincipalId string
+
 var uniqueSuffix = uniqueString(resourceGroup().id)
 var baseName = '${projectName}-${environment}'
 
@@ -155,7 +157,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   properties: {
     minimumTlsVersion: 'TLS1_2'
     allowBlobPublicAccess: false
-    allowSharedKeyAccess: false // Bloquea Access Keys; obliga a usar Entra ID RBAC
+    allowSharedKeyAccess: false
     supportsHttpsTrafficOnly: true
     defaultToOAuthAuthentication: true
     networkAcls: {
@@ -203,7 +205,7 @@ resource serviceBusNamespace 'Microsoft.ServiceBus/namespaces@2022-10-01-preview
   }
   properties: {
     minimumTlsVersion: '1.2'
-    disableLocalAuth: true // Bloquea Connection Strings SAS; obliga a usar RBAC
+    disableLocalAuth: true
     zoneRedundant: false
   }
 }
@@ -215,7 +217,7 @@ resource eventsQueue 'Microsoft.ServiceBus/namespaces/queues@2022-10-01-preview'
     lockDuration: 'PT1M'
     maxSizeInMegabytes: 1024
     deadLetteringOnMessageExpiration: true
-    maxDeliveryCount: 5 // Si falla 5 veces, va a la cola de Dead-Letter
+    maxDeliveryCount: 5
   }
 }
 
@@ -232,7 +234,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
       name: 'standard'
     }
     tenantId: subscription().tenantId
-    enableRbacAuthorization: true // Usa Azure RBAC en lugar de Access Policies antiguas
+    enableRbacAuthorization: true
     enableSoftDelete: true
     softDeleteRetentionInDays: 7
     enablePurgeProtection: true
@@ -259,14 +261,90 @@ resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
     name: 'Standard'
   }
   properties: {
-    adminUserEnabled: false // Cero contraseñas estáticas
+    adminUserEnabled: false
     publicNetworkAccess: 'Enabled'
     networkRuleBypassOptions: 'AzureServices'
   }
 }
 
 // ============================================================================
-// 8. OUTPUTS
+// 8. EL LIBRO DE GUARDIAS: ASIGNACIONES AZURE RBAC (Least Privilege)
+// ============================================================================
+// Códigos oficiales de Azure para cada rol
+var roles = {
+  acrPull: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
+  kvSecretsUser: subscriptionResourceId(
+    'Microsoft.Authorization/roleDefinitions',
+    '4633458b-17de-408a-b874-0445c86b69e6'
+  )
+  kvSecretsOfficer: subscriptionResourceId(
+    'Microsoft.Authorization/roleDefinitions',
+    'b86a8fe4-44ce-4948-aee5-eccb2c155cd7'
+  )
+  sbDataOwner: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '090c5cfd-751d-490a-894a-3ce6f1109419')
+  storageBlobContributor: subscriptionResourceId(
+    'Microsoft.Authorization/roleDefinitions',
+    'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
+  )
+}
+
+// Permiso 1: Gafete -> Sacar imágenes del ACR
+resource rbacAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(acr.id, workloadIdentity.id, roles.acrPull)
+  scope: acr
+  properties: {
+    roleDefinitionId: roles.acrPull
+    principalId: workloadIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Permiso 2: Gafete -> Leer secretos del Key Vault
+resource rbacKvWorkload 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(keyVault.id, workloadIdentity.id, roles.kvSecretsUser)
+  scope: keyVault
+  properties: {
+    roleDefinitionId: roles.kvSecretsUser
+    principalId: workloadIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Permiso 3: Tu Usuario -> Administrar secretos en el Key Vault
+resource rbacKvAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(keyVault.id, adminPrincipalId, roles.kvSecretsOfficer)
+  scope: keyVault
+  properties: {
+    roleDefinitionId: roles.kvSecretsOfficer
+    principalId: adminPrincipalId
+    principalType: 'User'
+  }
+}
+
+// Permiso 4: Gafete -> Enviar y recibir mensajes en Service Bus
+resource rbacSbWorkload 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(serviceBusNamespace.id, workloadIdentity.id, roles.sbDataOwner)
+  scope: serviceBusNamespace
+  properties: {
+    roleDefinitionId: roles.sbDataOwner
+    principalId: workloadIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Permiso 5: Gafete -> Guardar y leer archivos en Storage Account
+resource rbacStorageWorkload 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(storageAccount.id, workloadIdentity.id, roles.storageBlobContributor)
+  scope: storageAccount
+  properties: {
+    roleDefinitionId: roles.storageBlobContributor
+    principalId: workloadIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// ============================================================================
+// 9. OUTPUTS
 // ============================================================================
 output vnetName string = vnet.name
 output aksSubnetId string = vnet.properties.subnets[0].id
