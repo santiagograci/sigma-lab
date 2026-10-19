@@ -1,0 +1,44 @@
+name: Sigma-Lab CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-secure:
+    name: Build, SecOps Scan & Push
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install Dependencies
+      run: |
+        cd src
+        npm ci
+
+    - name: Run Snyk to check for vulnerabilities
+      uses: snyk/actions/node@master
+      continue-on-error: true # Permite auditar sin bloquear el pipeline por ahora
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+    - name: Log in to Azure Container Registry
+      uses: azure/docker-login@v1
+      with:
+        login-server: acrsigmalabzkcymsrwwuuha.azurecr.io
+        username: ${{ secrets.AZURE_CLIENT_ID }}
+        password: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+    - name: Build and Push Docker Image
+      run: |
+        docker build -t acrsigmalabzkcymsrwwuuha.azurecr.io/sigmalab-api:latest ./src
+        docker push acrsigmalabzkcymsrwwuuha.azurecr.io/sigmalab-api:latest
