@@ -369,7 +369,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2023-10-01' = {
       {
         name: 'systempool'
         count: 1
-        vmSize: 'Standard_D2s_v3' // Cambiado a una serie D compatible con AKS
+        vmSize: 'Standard_D2s_v6' // Cambiado a una serie D compatible con AKS
         osDiskSizeGB: 50
         osType: 'Linux'
         type: 'VirtualMachineScaleSets'
