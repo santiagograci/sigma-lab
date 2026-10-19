@@ -1,0 +1,30 @@
+# Archivos compilados o temporales de Bicep / ARM
+*.json
+!**/parameters*.json
+!**/package*.json
+!**/tsconfig*.json
+
+# Variables de entorno y secretos locales (¡NUNCA subir a Git!)
+.env
+*.env
+*.pem
+*.key
+*.pfx
+kubeconfig*
+
+# Archivos de sistema y editores
+.DS_Store
+.vscode/
+.idea/
+
+# Dependencias y builds de código (para Fase 2 y 3)
+node_modules/
+__pycache__/
+*.pyc
+venv/
+.venv/
+dist/
+build/
+
+# Reportes locales de Snyk
+snyk-report.json
