@@ -227,7 +227,7 @@ resource eventsQueue 'Microsoft.ServiceBus/namespaces/queues@2022-10-01-preview'
 // 6. LA CAJA FUERTE (Azure Key Vault gobernado por RBAC)
 // ============================================================================
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
-  name: 'kv-${projectName}-${uniqueSuffix}'
+  name: 'kv-${projectName}-${take(uniqueSuffix, 10)}'
   location: location
   tags: commonTags
   properties: {
