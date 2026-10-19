@@ -19,6 +19,7 @@ var uniqueSuffix = uniqueString(resourceGroup().id)
 var baseName = '${projectName}-${environment}'
 
 var commonTags = {
+  Owner: 'Santiago-Graciano'
   Project: 'Sigma-Lab'
   Environment: environment
   ManagedBy: 'Bicep-IaC'
