@@ -347,6 +347,9 @@ resource rbacStorageWorkload 'Microsoft.Authorization/roleAssignments@2022-04-01
 // ============================================================================
 // 9. CLÚSTER AKS (Kubernetes de Nivel Producción)
 // ============================================================================
+// ============================================================================
+// 9. CLÚSTER AKS (Kubernetes de Nivel Producción)
+// ============================================================================
 resource aksCluster 'Microsoft.ContainerService/managedClusters@2023-10-01' = {
   name: 'aks-${baseName}'
   location: location
@@ -369,12 +372,13 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2023-10-01' = {
       {
         name: 'systempool'
         count: 1
-        vmSize: 'Standard_D2s_v6' // Cambiado a una serie D compatible con AKS
+        vmSize: 'Standard_D2s_v6'
         osDiskSizeGB: 50
         osType: 'Linux'
         type: 'VirtualMachineScaleSets'
         mode: 'System'
         vnetSubnetID: vnet::aksSubnet.id
+        tags: commonTags // <-- ¡Esta línea soluciona el bloqueo del VMSS!
       }
     ]
     networkProfile: {
