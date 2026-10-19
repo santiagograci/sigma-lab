@@ -20,6 +20,7 @@ var baseName = '${projectName}-${environment}'
 
 var commonTags = {
   Owner: 'Santiago-Graciano'
+  CostCenter: 'CC-DevSecOps-088'
   Project: 'Sigma-Lab'
   Environment: environment
   ManagedBy: 'Bicep-IaC'
