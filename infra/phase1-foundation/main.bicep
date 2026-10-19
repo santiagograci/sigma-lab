@@ -143,6 +143,11 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-09-01' = {
       }
     ]
   }
+
+  // Referencia simbólica directa a la subred de AKS para evitar fallos de Preflight Validation
+  resource aksSubnet 'subnets' existing = {
+    name: 'snet-aks-nodes'
+  }
 }
 
 // ============================================================================
@@ -167,7 +172,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
       defaultAction: 'Allow'
       virtualNetworkRules: [
         {
-          id: vnet.properties.subnets[0].id
+          id: vnet::aksSubnet.id
           action: 'Allow'
         }
       ]
@@ -245,7 +250,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
       defaultAction: 'Allow'
       virtualNetworkRules: [
         {
-          id: vnet.properties.subnets[0].id
+          id: vnet::aksSubnet.id
         }
       ]
     }
@@ -272,7 +277,6 @@ resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
 // ============================================================================
 // 8. EL LIBRO DE GUARDIAS: ASIGNACIONES AZURE RBAC (Least Privilege)
 // ============================================================================
-// Códigos oficiales de Azure para cada rol
 var roles = {
   acrPull: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
   kvSecretsUser: subscriptionResourceId(
@@ -290,7 +294,6 @@ var roles = {
   )
 }
 
-// Permiso 1: Gafete -> Sacar imágenes del ACR
 resource rbacAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(acr.id, workloadIdentity.id, roles.acrPull)
   scope: acr
@@ -301,7 +304,6 @@ resource rbacAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-// Permiso 2: Gafete -> Leer secretos del Key Vault
 resource rbacKvWorkload 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(keyVault.id, workloadIdentity.id, roles.kvSecretsUser)
   scope: keyVault
@@ -312,7 +314,6 @@ resource rbacKvWorkload 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-// Permiso 3: Tu Usuario -> Administrar secretos en el Key Vault
 resource rbacKvAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(keyVault.id, adminPrincipalId, roles.kvSecretsOfficer)
   scope: keyVault
@@ -323,7 +324,6 @@ resource rbacKvAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-// Permiso 4: Gafete -> Enviar y recibir mensajes en Service Bus
 resource rbacSbWorkload 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(serviceBusNamespace.id, workloadIdentity.id, roles.sbDataOwner)
   scope: serviceBusNamespace
@@ -334,7 +334,6 @@ resource rbacSbWorkload 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-// Permiso 5: Gafete -> Guardar y leer archivos en Storage Account
 resource rbacStorageWorkload 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(storageAccount.id, workloadIdentity.id, roles.storageBlobContributor)
   scope: storageAccount
@@ -349,7 +348,7 @@ resource rbacStorageWorkload 'Microsoft.Authorization/roleAssignments@2022-04-01
 // 9. OUTPUTS
 // ============================================================================
 output vnetName string = vnet.name
-output aksSubnetId string = vnet.properties.subnets[0].id
+output aksSubnetId string = vnet::aksSubnet.id
 output workloadIdentityId string = workloadIdentity.id
 output workloadIdentityClientId string = workloadIdentity.properties.clientId
 output acrLoginServer string = acr.properties.loginServer
