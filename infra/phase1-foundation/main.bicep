@@ -345,9 +345,59 @@ resource rbacStorageWorkload 'Microsoft.Authorization/roleAssignments@2022-04-01
 }
 
 // ============================================================================
-// 9. OUTPUTS
+// 9. CLÚSTER AKS (Kubernetes de Nivel Producción)
+// ============================================================================
+resource aksCluster 'Microsoft.ContainerService/managedClusters@2023-10-01' = {
+  name: 'aks-${baseName}'
+  location: location
+  tags: commonTags
+  identity: {
+    type: 'SystemAssigned'
+  }
+  properties: {
+    dnsPrefix: 'aks-${baseName}'
+    enableRBAC: true
+    oidcIssuerProfile: {
+      enabled: true
+    }
+    securityProfile: {
+      workloadIdentity: {
+        enabled: true
+      }
+    }
+    agentPoolProfiles: [
+      {
+        name: 'systempool'
+        count: 1
+        vmSize: 'Standard_B2s' // Costo-eficiente para laboratorio de estudio
+        osDiskSizeGB: 50
+        osType: 'Linux'
+        type: 'VirtualMachineScaleSets'
+        mode: 'System'
+        vnetSubnetID: vnet::aksSubnet.id
+      }
+    ]
+    networkProfile: {
+      networkPlugin: 'azure'
+      loadBalancerSku: 'standard'
+    }
+  }
+}
+
+// Permiso: Dar acceso al Kubelet de AKS para descargar imágenes del ACR automáticamente
+resource rbacAksAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(acr.id, aksCluster.id, roles.acrPull)
+  scope: acr
+  properties: {
+    roleDefinitionId: roles.acrPull
+    principalId: aksCluster.properties.identityProfile.kubeletIdentity.objectId
+    principalType: 'ServicePrincipal'
+  }
+} // ============================================================================
+// 10. OUTPUTS
 // ============================================================================
 output vnetName string = vnet.name
+output aksClusterName string = aksCluster.name
 output aksSubnetId string = vnet::aksSubnet.id
 output workloadIdentityId string = workloadIdentity.id
 output workloadIdentityClientId string = workloadIdentity.properties.clientId
