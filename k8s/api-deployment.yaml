@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sigmalab-api
+  namespace: default
+  labels:
+    app: sigmalab-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sigmalab-api
+  template:
+    metadata:
+      labels:
+        app: sigmalab-api
+    spec:
+      containers:
+      - name: api
+        image: acrsigmalabzkcymsrwwuuha.azurecr.io/sigmalab-api:v1.0.0
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+        resources:
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
